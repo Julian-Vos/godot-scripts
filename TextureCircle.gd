@@ -57,6 +57,11 @@ func set_length_degrees(value):
 func set_collidable(value):
 	collidable = value
 	
+	if is_inside_tree():
+		update()
+	else:
+		yield(self, 'ready')
+	
 	if collidable != has_node('StaticBody2D'):
 		if collidable:
 			var body = StaticBody2D.new()
@@ -67,8 +72,6 @@ func set_collidable(value):
 			add_child(body, true)
 		else:
 			$StaticBody2D.queue_free()
-	
-	update()
 
 func _draw():
 	var slice_angle = atan2(slice_width_max / 2, radius) * 2
