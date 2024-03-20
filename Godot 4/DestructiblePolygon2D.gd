@@ -1,13 +1,18 @@
 @tool
+class_name DestructiblePolygon2D
 extends Node2D
+## A node for free-form destruction (and creation) of polygonal terrain.
+## Define the initial terrain with [Polygon2D] children, then call [member destruct] on it to erase a polygonal area.
 
+## If [code]true[/code], the node is collidable as a static body (in layer 1).
 @export var collidable: bool: set = set_collidable
+## If [code]true[/code], the node is freed automatically when destructed completely.
 @export var free_when_empty: bool
-# Vertices are deleted if they are less than this number of pixels away from both adjacent vertices.
-# A higher value increases performance, but reduces visual and area calculation accuracy.
+## Vertices are deleted if they are less than this number of pixels away from both adjacent vertices.
+## A higher value increases performance, but reduces visual and area calculation accuracy.
 @export_range(0, 16) var simplification := 8.0
 
-@onready var has_been_collidable = collidable
+@onready var _has_been_collidable := collidable
 
 func _ready():
 	if Engine.is_editor_hint():
@@ -22,8 +27,8 @@ func _ready():
 		for polygon_2d in get_children():
 			update_bounds_and_area(polygon_2d, polygon_2d.polygon)
 
-# Clips a PackedVector2Array against itself at the specified position, and returns the destructed area in pixels.
-func destruct(polygon, at_global_position = Vector2.ZERO):
+## Clips [param polygon] against itself [param at_global_position], and returns the destructed area in pixels.
+func destruct(polygon: PackedVector2Array, at_global_position := Vector2.ZERO) -> float:
 	var mask = Transform2D(0, at_global_position - global_position) * polygon
 	var minX = INF
 	var minY = INF
@@ -43,7 +48,7 @@ func destruct(polygon, at_global_position = Vector2.ZERO):
 	for polygon_2d in get_children():
 		if polygon_2d.get_meta('bounds').intersects(mask_bounds):
 			var old_area = polygon_2d.get_meta('area')
-			var new_area = destruct_child(polygon_2d, mask)
+			var new_area = _destruct_child(polygon_2d, mask)
 			
 			area_sum += old_area - new_area
 			
@@ -57,7 +62,7 @@ func destruct(polygon, at_global_position = Vector2.ZERO):
 	
 	return area_sum
 
-func destruct_child(polygon_2d, mask):
+func _destruct_child(polygon_2d, mask):
 	var clipped_polygons = Geometry2D.clip_polygons(polygon_2d.polygon, mask)
 	
 	match clipped_polygons.size():
@@ -150,19 +155,19 @@ func destruct_child(polygon_2d, mask):
 									
 									m = (m + 1) % hole_size
 								
-								var area1 = update_or_create(polygon_2d, part1, part1.size(), false)
-								var area2 = update_or_create(polygon_2d, part2, part2.size(), true)
+								var area1 = _update_or_create(polygon_2d, part1, part1.size(), false)
+								var area2 = _update_or_create(polygon_2d, part2, part2.size(), true)
 								
 								return area1 + area2
 	
 	var area_sum = 0
 	
 	for i in clipped_polygons.size():
-		area_sum += update_or_create(polygon_2d, clipped_polygons[i], clipped_polygons[i].size(), i > 0)
+		area_sum += _update_or_create(polygon_2d, clipped_polygons[i], clipped_polygons[i].size(), i > 0)
 	
 	return area_sum
 
-func update_or_create(polygon_2d, polygon, size, new):
+func _update_or_create(polygon_2d, polygon, size, new):
 	if size > 128:
 		var i = size / 2
 		var step = 1
@@ -194,8 +199,8 @@ func update_or_create(polygon_2d, polygon, size, new):
 					
 					l = (l + 1) % size
 				
-				var area1 = update_or_create(polygon_2d, part1, i + 1, new)
-				var area2 = update_or_create(polygon_2d, part2, size - i + 1, true)
+				var area1 = _update_or_create(polygon_2d, part1, i + 1, new)
+				var area2 = _update_or_create(polygon_2d, part2, size - i + 1, true)
 				
 				return area1 + area2
 			
@@ -237,12 +242,13 @@ func update_or_create(polygon_2d, polygon, size, new):
 	
 	polygon_2d.polygon = polygon
 	
-	if has_been_collidable:
+	if _has_been_collidable:
 		polygon_2d.get_child(0).get_child(0).polygon = polygon
 	
 	return update_bounds_and_area(polygon_2d, polygon)
 
-func update_bounds_and_area(polygon_2d, polygon):
+## When adding a [Polygon2D] child at runtime, call this.
+func update_bounds_and_area(polygon_2d: Polygon2D, polygon: PackedVector2Array) -> float:
 	var minX = INF
 	var minY = INF
 	var maxX = -INF
@@ -266,7 +272,8 @@ func update_bounds_and_area(polygon_2d, polygon):
 	
 	return area / 2
 
-func add_collision_polygon(polygon_2d):
+## When adding a [Polygon2D] child at runtime, call this if [member collidable] is [code]true[/code].
+func add_collision_polygon(polygon_2d: Polygon2D):
 	var static_body_2d = StaticBody2D.new()
 	var collision_polygon_2d = CollisionPolygon2D.new()
 	
@@ -282,15 +289,15 @@ func set_collidable(value):
 		return
 	
 	if collidable:
-		if has_been_collidable:
+		if _has_been_collidable:
 			for polygon_2d in get_children():
 				polygon_2d.get_child(0).get_child(0).set_deferred('disabled', false)
 		else:
 			for polygon_2d in get_children():
 				add_collision_polygon(polygon_2d)
 			
-			has_been_collidable = true
-	elif has_been_collidable:
+			_has_been_collidable = true
+	elif _has_been_collidable:
 		for polygon_2d in get_children():
 			polygon_2d.get_child(0).get_child(0).set_deferred('disabled', true)
 

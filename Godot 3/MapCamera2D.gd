@@ -1,3 +1,4 @@
+class_name MapCamera2D
 extends Camera2D
 
 export(float, 0.1, 10) var zoom_factor = 1.25 # set to 1 to disable zooming
@@ -100,8 +101,8 @@ func _unhandled_input(event):
 						
 						offset = Vector2.ZERO
 
-func set_pan_direction(new_value):
-	pan_direction = new_value
+func set_pan_direction(value):
+	pan_direction = value
 	
 	if pan_direction == Vector2.ZERO:
 		set_process(false)
@@ -112,7 +113,7 @@ func set_pan_direction(new_value):
 		
 		tween_offset.kill()
 
-func clamp_offset(relative = Vector2()): # call after changing global position and setting offset = offset to stay within limits
+func clamp_offset(relative := Vector2()): # call after changing global position and setting offset = offset to stay within limits
 	var camera_size = get_viewport_rect().size * zoom
 	var camera_rect = Rect2(get_camera_screen_center() + relative - camera_size / 2, camera_size)
 	
@@ -179,7 +180,7 @@ func change_zoom(factor, with_cursor = true):
 		else:
 			set_zoom(clamped_zoom)
 
-func set_zoom(new_value):
-	zoom = new_value
+func set_zoom(value):
+	zoom = value
 	
 	clamp_offset()

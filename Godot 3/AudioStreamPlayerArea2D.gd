@@ -1,4 +1,5 @@
 tool
+class_name AudioStreamPlayerArea2D
 extends AudioStreamPlayer2D
 
 export(PoolVector2Array) var polygon setget set_polygon # must be clockwise

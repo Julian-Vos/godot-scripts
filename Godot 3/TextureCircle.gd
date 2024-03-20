@@ -1,4 +1,5 @@
 tool
+class_name TextureCircle
 extends Node2D
 
 export(Texture) var texture_fill setget set_texture_fill # import with Repeat enabled

@@ -1,16 +1,21 @@
 @tool
+class_name AudioStreamPlayerArea2D
 extends AudioStreamPlayer2D
+## A node like [AudioStreamPlayer2D], but plays from a polygonal area rather than a single point.
 
-@export var polygon: PackedVector2Array: # must be clockwise
+## The area to play from approximately (must be clockwise).
+@export var polygon: PackedVector2Array:
 	set(value):
 		polygon = value
 		
 		queue_redraw()
-var current_audio_listener # update manually if changed
-var previous_hearing_point
-var previous_global_transform
+## When changing the current [AudioListener2D] at runtime, set this.
+var current_audio_listener: AudioListener2D
+var _previous_hearing_point
+var _previous_global_transform
 
-@onready var viewport = get_viewport() # update manually if changed
+## When changing the node's [Viewport] at runtime, set this.
+@onready var viewport := get_viewport()
 
 func _ready():
 	if Engine.is_editor_hint() || polygon.is_empty():
@@ -28,22 +33,22 @@ func _ready():
 	
 	polygon *= Transform2D(0, polygon[0])
 	
-	move_toward_hearing_point()
+	_move_toward_hearing_point()
 
-# Process after moving the current camera, by using lower tree order or
-# higher process_priority. Consider disabling processing when far away.
-func _process(_delta):
-	move_toward_hearing_point()
+## Process after moving the current camera, by using lower tree order or higher [member Node.process_priority].
+## Consider disabling processing when far away.
+func _process(_delta: float):
+	_move_toward_hearing_point()
 
-func move_toward_hearing_point():
+func _move_toward_hearing_point():
 	var hearing_point = viewport.canvas_transform.affine_inverse() * (viewport.get_visible_rect().size / 2) \
 		if current_audio_listener == null else current_audio_listener.global_position
 	
-	if hearing_point == previous_hearing_point && global_transform == previous_global_transform:
+	if hearing_point == _previous_hearing_point && global_transform == _previous_global_transform:
 		return
 	
-	previous_hearing_point = hearing_point
-	previous_global_transform = global_transform
+	_previous_hearing_point = hearing_point
+	_previous_global_transform = global_transform
 	
 	var global_polygon = global_transform * polygon
 	
@@ -120,9 +125,9 @@ func move_toward_hearing_point():
 		
 		global_position = hearing_point + Vector2(cos(angle), sin(angle)).rotated(global_rotation) * min_distance_to_segment
 	
-	polygon *= Transform2D(0, (global_position - previous_global_transform.origin).rotated(-global_rotation) / global_scale)
+	polygon *= Transform2D(0, (global_position - _previous_global_transform.origin).rotated(-global_rotation) / global_scale)
 	
-	previous_global_transform = global_transform
+	_previous_global_transform = global_transform
 
 func _draw():
 	if !Engine.is_editor_hint() || polygon.size() < 2:

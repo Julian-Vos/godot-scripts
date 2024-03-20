@@ -1,4 +1,5 @@
 tool
+class_name DestructiblePolygon2D
 extends Node2D
 
 export(bool) var collidable setget set_collidable
@@ -23,7 +24,7 @@ func _ready():
 			update_bounds_and_area(polygon_2d, polygon_2d.polygon)
 
 # Clips a PoolVector2Array against itself at the specified position, and returns the destructed area in pixels.
-func destruct(polygon, at_global_position = Vector2.ZERO):
+func destruct(polygon: PoolVector2Array, at_global_position := Vector2.ZERO) -> float:
 	var mask = Transform2D(0, at_global_position - global_position).xform(polygon)
 	var minX = INF
 	var minY = INF
@@ -246,7 +247,7 @@ func update_or_create(polygon_2d, polygon, size, new):
 	
 	return update_bounds_and_area(polygon_2d, polygon)
 
-func update_bounds_and_area(polygon_2d, polygon):
+func update_bounds_and_area(polygon_2d: Polygon2D, polygon: PoolVector2Array) -> float:
 	var minX = INF
 	var minY = INF
 	var maxX = -INF
@@ -270,7 +271,7 @@ func update_bounds_and_area(polygon_2d, polygon):
 	
 	return area / 2
 
-func add_collision_polygon(polygon_2d):
+func add_collision_polygon(polygon_2d: Polygon2D):
 	var static_body_2d = StaticBody2D.new()
 	var collision_polygon_2d = CollisionPolygon2D.new()
 	
