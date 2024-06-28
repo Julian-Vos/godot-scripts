@@ -22,12 +22,15 @@ extends Camera2D
 
 ## If [code]true[/code], the map can be dragged while holding the left mouse button.
 @export var drag := true
+## Slide after dragging: multiplies the final drag movement each second (set to 0 to stop immediately).
+@export_range(0, 1) var drag_inertia := 0.1
 
 var _tween_offset
 var _tween_zoom
 var _pan_direction: set = _set_pan_direction
 var _pan_direction_mouse = Vector2.ZERO
 var _dragging = false
+var _drag_movement = Vector2()
 
 @onready var _target_zoom = zoom
 
@@ -37,10 +40,19 @@ func _ready():
 	get_viewport().size_changed.connect(clamp_offset)
 
 func _process(delta):
-	clamp_offset(_pan_direction * pan_speed * delta / zoom)
+	if _drag_movement == Vector2.ZERO:
+		clamp_offset(_pan_direction * pan_speed * delta / zoom)
+	else:
+		_drag_movement *= drag_inertia ** delta
+		
+		clamp_offset(-_drag_movement / zoom)
+		
+		if _drag_movement.length_squared() < 0.01:
+			set_process(false)
+			set_physics_process(false)
 
 func _physics_process(delta):
-	clamp_offset(_pan_direction * pan_speed * delta / zoom)
+	_process(delta)
 
 func _unhandled_input(event):
 	if event is InputEventMagnifyGesture:
@@ -56,15 +68,25 @@ func _unhandled_input(event):
 					_change_zoom(1 / zoom_factor)
 				MOUSE_BUTTON_LEFT:
 					if drag:
-						_dragging = true
-						
 						Input.set_default_cursor_shape(Input.CURSOR_DRAG) # delete to disable drag cursor
-		elif event.button_index == MOUSE_BUTTON_LEFT:
+						
+						_dragging = true
+						_drag_movement = Vector2()
+						
+						set_process(false)
+						set_physics_process(false)
+		elif event.button_index == MOUSE_BUTTON_LEFT and _dragging:
+			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+			
 			_dragging = false
 			
-			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+			if _drag_movement != Vector2.ZERO || _pan_direction != Vector2.ZERO:
+				set_process(process_callback == CAMERA2D_PROCESS_IDLE)
+				set_physics_process(process_callback == CAMERA2D_PROCESS_PHYSICS)
 	elif event is InputEventMouseMotion:
-		_pan_direction -= _pan_direction_mouse
+		if _pan_direction_mouse != Vector2.ZERO:
+			_pan_direction -= _pan_direction_mouse
+		
 		_pan_direction_mouse = Vector2()
 		
 		if _dragging:
@@ -72,6 +94,8 @@ func _unhandled_input(event):
 				_tween_offset.kill()
 			
 			clamp_offset(-event.relative / zoom)
+			
+			_drag_movement = event.relative
 		elif pan_margin > 0:
 			var camera_size = get_viewport_rect().size
 			
@@ -87,7 +111,8 @@ func _unhandled_input(event):
 			if event.position.y >= camera_size.y - pan_margin:
 				_pan_direction_mouse.y += 1
 		
-		_pan_direction += _pan_direction_mouse
+		if _pan_direction_mouse != Vector2.ZERO:
+			_pan_direction += _pan_direction_mouse
 	elif event is InputEventKey:
 		if zoom_keyboard && event.pressed:
 			match event.keycode:
@@ -116,12 +141,14 @@ func _unhandled_input(event):
 func _set_pan_direction(value):
 	_pan_direction = value
 	
-	if _pan_direction == Vector2.ZERO:
+	if _pan_direction == Vector2.ZERO || _dragging:
 		set_process(false)
 		set_physics_process(false)
 	elif pan_speed > 0:
 		set_process(process_callback == CAMERA2D_PROCESS_IDLE)
 		set_physics_process(process_callback == CAMERA2D_PROCESS_PHYSICS)
+		
+		_drag_movement = Vector2()
 		
 		if _tween_offset != null:
 			_tween_offset.kill()
@@ -132,17 +159,21 @@ func clamp_offset(relative := Vector2()):
 	var camera_rect = Rect2(get_screen_center_position() + relative - camera_size / 2, camera_size)
 	
 	if camera_rect.position.x < limit_left:
+		_drag_movement.x = 0
 		relative.x += limit_left - camera_rect.position.x
 		camera_rect.end.x += limit_left - camera_rect.position.x
 	
 	if camera_rect.end.x > limit_right:
+		_drag_movement.x = 0
 		relative.x -= camera_rect.end.x - limit_right
 	
 	if camera_rect.end.y > limit_bottom:
+		_drag_movement.y = 0
 		relative.y -= camera_rect.end.y - limit_bottom
 		camera_rect.position.y -= camera_rect.end.y - limit_bottom
 	
 	if camera_rect.position.y < limit_top:
+		_drag_movement.y = 0
 		relative.y += limit_top - camera_rect.position.y
 	
 	if relative != Vector2.ZERO:
@@ -172,7 +203,7 @@ func _change_zoom(factor, with_cursor = true):
 	clamped_zoom *= [1, zoom_max / _target_zoom.x, zoom_max / _target_zoom.y].min()
 	
 	if position_smoothing_enabled && position_smoothing_speed > 0:
-		if zoom_relative && with_cursor && _pan_direction == Vector2.ZERO:
+		if zoom_relative && with_cursor && !is_processing() && !is_physics_processing():
 			var relative_position = get_global_mouse_position() - global_position - offset
 			var relative = relative_position - relative_position * zoom / clamped_zoom
 			
