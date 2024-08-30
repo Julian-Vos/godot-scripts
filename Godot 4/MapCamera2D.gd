@@ -8,6 +8,8 @@ extends Camera2D
 @export_range(0.01, 100) var zoom_min := 0.1
 ## Maximum [member Camera2D.zoom].
 @export_range(0.01, 100) var zoom_max := 10.0
+## If [code]true[/code], [member MapCamera2D.zoom_min] is effectively increased (up to [member MapCamera2D.zoom_max]) to stay within limits.
+@export var zoom_limited := true
 ## If [code]true[/code], mouse zooming is done relative to the cursor (instead of to the center of the screen).
 @export var zoom_relative := true
 ## If [code]true[/code], zooming can also be done with the plus and minus keys.
@@ -37,7 +39,9 @@ var _drag_movement = Vector2()
 func _ready():
 	_pan_direction = Vector2.ZERO
 	
-	get_viewport().size_changed.connect(clamp_offset)
+	change_zoom()
+	
+	get_viewport().size_changed.connect(change_zoom)
 
 func _process(delta):
 	if _drag_movement == Vector2.ZERO:
@@ -56,16 +60,16 @@ func _physics_process(delta):
 
 func _unhandled_input(event):
 	if event is InputEventMagnifyGesture:
-		_change_zoom(1 + ((zoom_factor if zoom_factor > 1 else 1 / zoom_factor) - 1) * (event.factor - 1) * 2.5)
+		change_zoom(1 + ((zoom_factor if zoom_factor > 1 else 1 / zoom_factor) - 1) * (event.factor - 1) * 2.5)
 	elif event is InputEventPanGesture:
-		_change_zoom(1 + (1 / zoom_factor - 1) * event.delta.y / 7.5)
+		change_zoom(1 + (1 / zoom_factor - 1) * event.delta.y / 7.5)
 	elif event is InputEventMouseButton:
 		if event.pressed:
 			match event.button_index:
 				MOUSE_BUTTON_WHEEL_UP:
-					_change_zoom(zoom_factor)
+					change_zoom(zoom_factor)
 				MOUSE_BUTTON_WHEEL_DOWN:
-					_change_zoom(1 / zoom_factor)
+					change_zoom(1 / zoom_factor)
 				MOUSE_BUTTON_LEFT:
 					if drag:
 						Input.set_default_cursor_shape(Input.CURSOR_DRAG) # delete to disable drag cursor
@@ -117,9 +121,9 @@ func _unhandled_input(event):
 		if zoom_keyboard && event.pressed:
 			match event.keycode:
 				KEY_MINUS:
-					_change_zoom(zoom_factor if zoom_factor < 1 else 1 / zoom_factor, false)
+					change_zoom(zoom_factor if zoom_factor < 1 else 1 / zoom_factor, false)
 				KEY_EQUAL:
-					_change_zoom(zoom_factor if zoom_factor > 1 else 1 / zoom_factor, false)
+					change_zoom(zoom_factor if zoom_factor > 1 else 1 / zoom_factor, false)
 		
 		if pan_keyboard && !event.echo:
 			match event.keycode:
@@ -179,30 +183,43 @@ func clamp_offset(relative := Vector2()):
 	if relative != Vector2.ZERO:
 		offset += relative
 
-func _change_zoom(factor, with_cursor = true):
-	if factor < 1:
-		if _target_zoom.x < zoom_min || is_equal_approx(_target_zoom.x, zoom_min):
-			return
-		
-		if _target_zoom.y < zoom_min || is_equal_approx(_target_zoom.y, zoom_min):
-			return
-	elif factor > 1:
-		if _target_zoom.x > zoom_max || is_equal_approx(_target_zoom.x, zoom_max):
-			return
-		
-		if _target_zoom.y > zoom_max || is_equal_approx(_target_zoom.y, zoom_max):
-			return
-	else:
-		return
+## After changing the node's limits, call this without arguments to stay within limits.
+func change_zoom(factor = null, with_cursor = true):
+	var limited_zoom_min = zoom_min
 	
-	_target_zoom *= factor
+	if zoom_limited:
+		var min_zoom_within_limits = get_viewport_rect().size / Vector2(limit_right - limit_left, limit_bottom - limit_top)
+		
+		limited_zoom_min = min(max(zoom_min, min_zoom_within_limits.x, min_zoom_within_limits.y), zoom_max)
+	
+	if factor != null:
+		if factor < 1:
+			if _target_zoom.x < limited_zoom_min || is_equal_approx(_target_zoom.x, limited_zoom_min):
+				return
+			
+			if _target_zoom.y < limited_zoom_min || is_equal_approx(_target_zoom.y, limited_zoom_min):
+				return
+		elif factor > 1:
+			if _target_zoom.x > zoom_max || is_equal_approx(_target_zoom.x, zoom_max):
+				return
+			
+			if _target_zoom.y > zoom_max || is_equal_approx(_target_zoom.y, zoom_max):
+				return
+		else:
+			return
+		
+		_target_zoom *= factor
 	
 	var clamped_zoom = _target_zoom
 	
-	clamped_zoom *= [1, zoom_min / _target_zoom.x, zoom_min / _target_zoom.y].max()
-	clamped_zoom *= [1, zoom_max / _target_zoom.x, zoom_max / _target_zoom.y].min()
+	clamped_zoom *= max(1, limited_zoom_min / _target_zoom.x, limited_zoom_min / _target_zoom.y)
+	clamped_zoom *= min(1, zoom_max / _target_zoom.x, zoom_max / _target_zoom.y)
 	
-	if position_smoothing_enabled && position_smoothing_speed > 0:
+	if factor == null:
+		_set_zoom_level(clamped_zoom)
+		
+		_target_zoom = zoom
+	elif position_smoothing_enabled && position_smoothing_speed > 0:
 		if zoom_relative && with_cursor && !is_processing() && !is_physics_processing():
 			var relative_position = get_global_mouse_position() - global_position - offset
 			var relative = relative_position - relative_position * zoom / clamped_zoom
