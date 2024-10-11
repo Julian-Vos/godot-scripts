@@ -191,6 +191,8 @@ func change_zoom(factor = null, with_cursor = true):
 		var min_zoom_within_limits = get_viewport_rect().size / Vector2(limit_right - limit_left, limit_bottom - limit_top)
 		
 		limited_zoom_min = min(max(zoom_min, min_zoom_within_limits.x, min_zoom_within_limits.y), zoom_max)
+	elif factor == null:
+		return
 	
 	if factor != null:
 		if factor < 1:
