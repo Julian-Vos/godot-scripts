@@ -31,7 +31,7 @@ var _tween_offset
 var _tween_zoom
 var _pan_direction: set = _set_pan_direction
 var _pan_direction_mouse = Vector2.ZERO
-var _dragging = false
+var _drag_time
 var _drag_movement = Vector2()
 
 @onready var _target_zoom = zoom
@@ -74,32 +74,33 @@ func _unhandled_input(event):
 					if drag:
 						Input.set_default_cursor_shape(Input.CURSOR_DRAG) # delete to disable drag cursor
 						
-						_dragging = true
+						_drag_time = Time.get_ticks_msec()
 						_drag_movement = Vector2()
 						
 						set_process(false)
 						set_physics_process(false)
-		elif event.button_index == MOUSE_BUTTON_LEFT and _dragging:
+		elif event.button_index == MOUSE_BUTTON_LEFT and _drag_time != null:
 			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 			
-			_dragging = false
-			
-			if _drag_movement != Vector2.ZERO || _pan_direction != Vector2.ZERO:
+			if (Time.get_ticks_msec() - _drag_time < 100 && _drag_movement.length_squared() > 3) || _pan_direction != Vector2.ZERO:
 				set_process(process_callback == CAMERA2D_PROCESS_IDLE)
 				set_physics_process(process_callback == CAMERA2D_PROCESS_PHYSICS)
+			
+			_drag_time = null
 	elif event is InputEventMouseMotion:
 		if _pan_direction_mouse != Vector2.ZERO:
 			_pan_direction -= _pan_direction_mouse
 		
 		_pan_direction_mouse = Vector2()
 		
-		if _dragging:
-			if _tween_offset != null:
-				_tween_offset.kill()
+		if _drag_time != null:
+			_drag_time = Time.get_ticks_msec()
+			_drag_movement = event.relative
 			
 			clamp_offset(-event.relative / zoom)
 			
-			_drag_movement = event.relative
+			if _tween_offset != null:
+				_tween_offset.kill()
 		elif pan_margin > 0:
 			var camera_size = get_viewport_rect().size
 			
@@ -137,15 +138,15 @@ func _unhandled_input(event):
 					_pan_direction += Vector2(0, 1 if event.pressed else -1)
 				KEY_SPACE: # delete to disable keyboard centering
 					if event.pressed:
+						offset = Vector2.ZERO
+						
 						if _tween_offset != null:
 							_tween_offset.kill()
-						
-						offset = Vector2.ZERO
 
 func _set_pan_direction(value):
 	_pan_direction = value
 	
-	if _pan_direction == Vector2.ZERO || _dragging:
+	if _pan_direction == Vector2.ZERO || _drag_time != null:
 		set_process(false)
 		set_physics_process(false)
 	elif pan_speed > 0:

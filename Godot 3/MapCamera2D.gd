@@ -19,7 +19,7 @@ var tween_offset = SceneTreeTween.new()
 var tween_zoom = SceneTreeTween.new()
 var pan_direction setget set_pan_direction
 var pan_direction_mouse = Vector2.ZERO
-var dragging = false
+var drag_time
 var drag_movement = Vector2()
 
 onready var target_zoom = zoom
@@ -62,29 +62,30 @@ func _unhandled_input(event):
 					if drag:
 						Input.set_default_cursor_shape(Input.CURSOR_DRAG) # delete to disable drag cursor
 						
-						dragging = true
+						drag_time = OS.get_ticks_msec()
 						drag_movement = Vector2()
 						
 						set_process(false)
 						set_physics_process(false)
-		elif event.button_index == BUTTON_LEFT && dragging:
+		elif event.button_index == BUTTON_LEFT && drag_time != null:
 			Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 			
-			dragging = false
-			
-			if drag_movement != Vector2.ZERO || pan_direction != Vector2.ZERO:
+			if (OS.get_ticks_msec() - drag_time < 100 && drag_movement.length_squared() > 3) || pan_direction != Vector2.ZERO:
 				set_process(process_mode == CAMERA2D_PROCESS_IDLE)
 				set_physics_process(process_mode == CAMERA2D_PROCESS_PHYSICS)
+			
+			drag_time = null
 	elif event is InputEventMouseMotion:
 		pan_direction -= pan_direction_mouse
 		pan_direction_mouse = Vector2()
 		
-		if dragging:
-			tween_offset.kill()
+		if drag_time != null:
+			drag_time = OS.get_ticks_msec()
+			drag_movement = event.relative
 			
 			clamp_offset(-event.relative * zoom)
 			
-			drag_movement = event.relative
+			tween_offset.kill()
 		elif pan_margin > 0:
 			var camera_size = get_viewport_rect().size
 			
@@ -122,14 +123,14 @@ func _unhandled_input(event):
 					self.pan_direction += Vector2(0, 1 if event.pressed else -1)
 				KEY_SPACE: # delete to disable keyboard centering
 					if event.pressed:
-						tween_offset.kill()
-						
 						offset = Vector2.ZERO
+						
+						tween_offset.kill()
 
 func set_pan_direction(value):
 	pan_direction = value
 	
-	if pan_direction == Vector2.ZERO || dragging:
+	if pan_direction == Vector2.ZERO || drag_time != null:
 		set_process(false)
 		set_physics_process(false)
 	elif pan_speed > 0:
