@@ -1,5 +1,5 @@
 # Godot Scripts
-This is a collection of GDScript files I wrote, that might be useful to others. Feel free to use them however you like! Follow me on [Mastodon](https://mastodon.gamedev.place/@julianvos) or [X](https://twitter.com/julian_vosje) for demonstrations and more.
+This is a collection of GDScript files I wrote, that might be useful to others. Feel free to use them however you like! Follow me on [Mastodon](https://mastodon.gamedev.place/@julianvos) or [Bluesky](https://bsky.app/profile/julianvos.bsky.social) for demonstrations and more.
 
 ## AudioStreamPlayerArea2D
 A node like `AudioStreamPlayer2D`, but plays from a polygonal area rather than a single point.
